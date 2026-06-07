@@ -1,32 +1,54 @@
-from aiogram import Bot
 from dotenv import load_dotenv
+load_dotenv() #Подгружаем файл конфига .env
+
+from aiogram import Bot
 from os import environ
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import asyncio
 import logging
-from parser import parse_one
+from parser import parse_all
+import ai
 
-load_dotenv() #Подгружаем файл конфига .env
+from id_manager import add_id, check_id
 
 bot = Bot(environ.get("BOT_TOKEN")) #Создает бота по токену в .env
 
 async def send_post():
-    """Парсит недавнюю новость из хабра и отправляет в канал"""
+    """Парсит недавнюю новость из хабра и отправляет в канал. 
+Проверяет последние MAX_INDEX (.env) новостей по оценкам (больше MIN_VOTES (.env) голосов)"""
 
-    title, content, image = await parse_one()
-    if image:
-        await bot.send_photo( #Отправка поста
-            chat_id=environ.get("CHANNEL"),
-            photo=image,
-            caption=f"<b>{title}</b>\n\n{content}",
-            parse_mode="HTML"
-        )
+    articles = await parse_all() #Парсит из хабра новости
+    article_index = 0
+    while article_index<int(environ.get("MAX_INDEX")) and article_index<len(articles): #Перебираем новости
+        article = articles[article_index]
+        title = article["title"]
+        content = article["content"]
+        image = article["image"]
+        article_id = article["id"]
+        votes = article["votes"]
+
+        logging.info(f"Пост:\n\n{title}\n\n{content}\n\n{votes} - {article_id}")
+        print(f"Айди есть - {check_id(article_id)}")
+        print(image)
+        if not check_id(article_id) and votes>int(environ.get("MIN_VOTES")) and image: #Проверка новости по критериям
+            if len(content)>900: content = await ai.explain(content) #ИИ сокращает статью если текст слишком большой
+            logging.info(f"Сокращенный текст:\n\n{content}")
+
+            add_id(article_id) #Добавление новости в список отправленных
+
+            logging.info(f"Отправляю пост - {article_id}")
+            await bot.send_photo( #Отправка поста
+                chat_id=environ.get("CHANNEL"),
+                photo=image,
+                caption=f"<b>{title}</b>\n\n{content}",
+                parse_mode="HTML"
+            )
+
+            break
+
+        article_index+=1
     else:
-        await bot.send_message(
-            chat_id=environ.get("CHANNEL"),
-            text=f"<b>{title}</b>\n\n{content}",
-            parse_mode="HTML"
-        )
+        logging.info("Не отправляю пост")
 
 async def main():
     scheduler = AsyncIOScheduler() #Создаем расписание
@@ -44,5 +66,5 @@ async def main():
     await asyncio.Event().wait()
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(filename="log.txt", level=logging.INFO)
     asyncio.run(main())
