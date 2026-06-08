@@ -2,3 +2,4 @@ aiogram
 dotenv
 apscheduler
 bs4
+openai

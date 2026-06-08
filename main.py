@@ -30,7 +30,7 @@ async def send_post():
         logging.info(f"Пост:\n\n{title}\n\n{content}\n\n{votes} - {article_id}")
         print(f"Айди есть - {check_id(article_id)}")
         print(image)
-        if not check_id(article_id) and votes>int(environ.get("MIN_VOTES")) and image: #Проверка новости по критериям
+        if not check_id(article_id) and votes>=int(environ.get("MIN_VOTES")) and image: #Проверка новости по критериям
             if len(content)>900: content = await ai.explain(content) #ИИ сокращает статью если текст слишком большой
             logging.info(f"Сокращенный текст:\n\n{content}")
 
